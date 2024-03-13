@@ -1,3 +1,6 @@
+# National Land Cover Database (too big)
+NLCD/*.*
+
 # History files
 .Rhistory
 .Rapp.history
