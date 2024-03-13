@@ -15,9 +15,10 @@ watershed<-st_read("Watershed/LakeWashingtonWatershed.shp") %>%
 
 
 # Initial test with NLCD 2021
-nlcd<-rast("NLCD/nlcd_2021_land_cover_l48_20230630.img") 
-crs(nlcd)<-"ESRI:102008"
+nlcd<-rast("NLCD/NLCD_2021_Land_Cover_L48_20230630_nDr0hjPobjWPXcj5l81y.tiff") %>% 
+  project("ESRI:102008")
+
 
 # Crop and mask to watershed extent
-n<-crop(nlcd,watershed,mask=T)
+n<-crop(nlcd,watershed, mask = T)
 writeRaster(n,"test.tif", overwrite=TRUE)
