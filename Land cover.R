@@ -21,4 +21,11 @@ nlcd<-rast("NLCD/NLCD_2021_Land_Cover_L48_20230630_nDr0hjPobjWPXcj5l81y.tiff") %
 
 # Crop and mask to watershed extent
 n<-crop(nlcd,watershed, mask = T)
-writeRaster(n,"test.tif", overwrite=TRUE)
+
+d<-as.data.frame(n) %>% 
+  table() %>% 
+  as.data.frame() %>% 
+  filter(Freq > 0) %>%
+  mutate(Year = 2021)
+
+
