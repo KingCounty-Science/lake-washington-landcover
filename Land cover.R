@@ -15,19 +15,14 @@ watershed<-st_read("Watershed/LakeWashingtonWatershed.shp") %>%
   st_transform(crs="ESRI:102008")
 
 
-readNLCD<-function(year,w) {
+readNLCD<-function(filename,w) {
   
-  filename<-ifelse(year == 2021, 
-                   sprintf("NLCD/NLCD_%s_Land_Cover_L48_20230630_nDr0hjPobjWPXcj5l81y.tiff",year),
-                   sprintf("NLCD/NLCD_%s_Land_Cover_L48_20210604_nDr0hjPobjWPXcj5l81y.tiff",year)
-  )
+  year<-str_extract(filename,"\\d+")
   
   nlcd<-rast(filename) %>% 
     project("ESRI:102008")
   
-  
-  
-  # Crop and mask to watershed extent
+    # Crop and mask to watershed extent
   n<-crop(nlcd,w, mask = T)
   
   d<-as.data.frame(n) %>% 
@@ -41,7 +36,7 @@ readNLCD<-function(year,w) {
 }
 
 tic()
-nlcd<-map_dfr(c(2001, 2004, 2006, 2008, 2011, 2013, 2016, 2019, 2021), readNLCD, w=watershed)
+nlcd.cover<-map_dfr(list.files(path="NLCD", pattern="Cover.+tiff$",full.names = T), readNLCD, w=watershed)
 toc()
 
 # Group land cover into water, shades of development, all forests, and other.
@@ -76,7 +71,7 @@ p
 
 # The changes are too subtle to see in the graph! So let's try a table, as percents
 
-totalarea<-cover %>% 
+totalarea<-nlcd.cover %>% 
   group_by(Year) %>% 
   summarize(TotalArea = sum(Area))
 
@@ -88,14 +83,14 @@ t<-totalarea %>%
   filter(Year == 2021) %>% 
   pull(TotalArea)
 
-totaldeveloped<-cover %>% 
+totaldeveloped<-nlcd.cover %>% 
   filter(str_detect(LandCover,"Developed")) %>% 
   group_by(Year) %>% 
   summarize(Area = sum(Area, na.rm = T)) %>% 
   ungroup() %>% 
   mutate(LandCover = "Total Developed")
 
-covertable<-cover %>% 
+covertable<-nlcd.cover %>% 
   bind_rows(totaldeveloped) %>% 
   mutate(Percent = round(Area / t *100, digits = 1)) %>% 
   select(LandCover,Year,Percent) %>% 
@@ -105,7 +100,7 @@ covertable<-cover %>%
 write_csv(covertable, "Lake Washington - Land cover percents by year.csv")
 
 # Compare to dividing by each year's land area?
-covertable2<-cover %>% 
+covertable2<-nlcd.cover %>% 
   bind_rows(totaldeveloped) %>% 
   left_join(totalarea, by = "Year") %>% 
   mutate(Percent = round(Area / TotalArea *100, digits = 1)) %>% 
