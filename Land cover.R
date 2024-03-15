@@ -35,12 +35,31 @@ readNLCD<-function(filename,w) {
   
 }
 
+## Impervious surface
+tic()
+nlcd.imp<-map_dfr(list.files(path="NLCD", pattern="Impervious.+tiff$",full.names = T), readNLCD, w=watershed)
+toc()
+
+# Layer_1 is the percent of impervious surface in that pixel.
+# Directly converting it to numeric ends up off by one (1-101; row numbers??), but going via
+# character works.
+imp<-nlcd.imp %>% 
+  mutate(PctImp = as.character(Layer_1),
+         PctImp = as.numeric(PctImp), 
+         ImpArea = PctImp * Freq / 100) %>% 
+  group_by(Year) %>% 
+  summarize(Area = sum(ImpArea, na.rm=T)) %>% 
+  ungroup() %>% 
+  mutate(LandCover = "Total Impervious")
+
+## Land cover
+
 tic()
 nlcd.cover<-map_dfr(list.files(path="NLCD", pattern="Cover.+tiff$",full.names = T), readNLCD, w=watershed)
 toc()
 
 # Group land cover into water, shades of development, all forests, and other.
-cover<-nlcd %>% 
+cover<-nlcd.cover %>% 
   mutate(LandCover = case_when(
                Layer_1 == 11 ~ "Water",
                Layer_1 == 21 ~ "Developed, Open space",
@@ -71,7 +90,7 @@ p
 
 # The changes are too subtle to see in the graph! So let's try a table, as percents
 
-totalarea<-nlcd.cover %>% 
+totalarea<-cover %>% 
   group_by(Year) %>% 
   summarize(TotalArea = sum(Area))
 
@@ -83,15 +102,16 @@ t<-totalarea %>%
   filter(Year == 2021) %>% 
   pull(TotalArea)
 
-totaldeveloped<-nlcd.cover %>% 
+totaldeveloped<-cover %>% 
   filter(str_detect(LandCover,"Developed")) %>% 
   group_by(Year) %>% 
   summarize(Area = sum(Area, na.rm = T)) %>% 
   ungroup() %>% 
   mutate(LandCover = "Total Developed")
 
-covertable<-nlcd.cover %>% 
+covertable<-cover %>% 
   bind_rows(totaldeveloped) %>% 
+  bind_rows(imp) %>% 
   mutate(Percent = round(Area / t *100, digits = 1)) %>% 
   select(LandCover,Year,Percent) %>% 
   pivot_wider(names_from = Year,
@@ -100,8 +120,9 @@ covertable<-nlcd.cover %>%
 write_csv(covertable, "Lake Washington - Land cover percents by year.csv")
 
 # Compare to dividing by each year's land area?
-covertable2<-nlcd.cover %>% 
+covertable2<-cover %>% 
   bind_rows(totaldeveloped) %>% 
+  bind_rows(imp) %>% 
   left_join(totalarea, by = "Year") %>% 
   mutate(Percent = round(Area / TotalArea *100, digits = 1)) %>% 
   select(LandCover,Year,Percent) %>% 
@@ -111,5 +132,7 @@ covertable2<-nlcd.cover %>%
                
                
 
-               
+
+
+
                
