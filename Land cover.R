@@ -44,19 +44,15 @@ tic()
 nlcd<-map_dfr(c(2001, 2004, 2006, 2008, 2011, 2013, 2016, 2019, 2021), readNLCD, w=watershed)
 toc()
 
-# I haven't figured out how to get terra to read in all the information.
-# It's only reading the Red of the rgb color values.
-# Fine the red values using ArcGIS to figure out what these correspond to.
-
 # Group land cover into water, shades of development, all forests, and other.
 cover<-nlcd %>% 
   mutate(LandCover = case_when(
-               Red == 70 ~ "Water",
-               Red == 222 ~ "Developed, Open space",
-               Red == 217 ~ "Developed, Low intensity",
-               Red == 235 ~ "Developed, Medium intensity",
-               Red == 171 ~ "Developed, High intensity",
-               Red %in% c(28, 104, 181) ~ "Forest", # Evergreen, deciduous, mixed, respectively
+               Layer_1 == 11 ~ "Water",
+               Layer_1 == 21 ~ "Developed, Open space",
+               Layer_1 == 22 ~ "Developed, Low intensity",
+               Layer_1 == 23 ~ "Developed, Medium intensity",
+               Layer_1 == 24 ~ "Developed, High intensity",
+               Layer_1 %in% c(41, 42, 43) ~ "Forest", 
                .default = "Other"),
          LandCover = ordered(LandCover, levels = c("Water",
                                                    "Forest",
