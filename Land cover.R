@@ -22,7 +22,7 @@ readNLCD<-function(filename,w) {
   nlcd<-rast(filename) %>% 
     project("ESRI:102008")
   
-    # Crop and mask to watershed extent
+  # Crop and mask to watershed extent
   n<-crop(nlcd,w, mask = T)
   
   d<-as.data.frame(n) %>% 
@@ -59,24 +59,41 @@ nlcd.cover<-map_dfr(list.files(path="NLCD", pattern="Cover.+tiff$",full.names = 
 toc()
 
 # Group land cover into water, shades of development, all forests, and other.
-cover<-nlcd.cover %>% 
-  mutate(LandCover = case_when(
-               Layer_1 == 11 ~ "Water",
-               Layer_1 == 21 ~ "Developed, Open space",
-               Layer_1 == 22 ~ "Developed, Low intensity",
-               Layer_1 == 23 ~ "Developed, Medium intensity",
-               Layer_1 == 24 ~ "Developed, High intensity",
-               Layer_1 %in% c(41, 42, 43) ~ "Forest", 
-               .default = "Other"),
-         LandCover = ordered(LandCover, levels = c("Water",
-                                                   "Forest",
-                                                   "Other",
-                                                   "Developed, Open space",
-                                                   "Developed, Low intensity",
-                                                   "Developed, Medium intensity",
-                                                   "Developed, High intensity"
-                                                   ))
-         ) %>% 
+cover.full<-nlcd.cover %>% 
+  mutate(LandCoverFull = case_when(
+    Layer_1 == 11 ~ "Water",
+    Layer_1 == 21 ~ "Developed, Open space",
+    Layer_1 == 22 ~ "Developed, Low intensity",
+    Layer_1 == 23 ~ "Developed, Medium intensity",
+    Layer_1 == 24 ~ "Developed, High intensity",
+    Layer_1 == 41 ~ "Forest, Deciduous",
+    Layer_1 == 42 ~ "Forest, Evergreen",
+    Layer_1 == 43 ~ "Forest, Mixed",
+    Layer_1 == 12 ~ "Perennial Ice/Snow",
+    Layer_1 == 31 ~ "Barren land",
+    Layer_1 == 52 ~ "Shrub/Scrub",
+    Layer_1 == 71 ~ "Grasslands/Herbaceous",
+    Layer_1 == 81 ~ "Pasture/Hay",
+    Layer_1 == 82 ~ "Cultivated crops",
+    Layer_1 == 90 ~ "Woody wetlands",
+    Layer_1 == 95 ~ "Emergent herbaceous wetlands",
+    .default = Layer_1),
+    LandCover = case_when(
+      str_detect(LandCoverFull, "Developed") ~ LandCoverFull,
+      str_detect(LandCoverFull, "Forest") ~ "Forest",
+      LandCoverFull == "Water" ~ "Water",
+      .default = "Other"),
+    LandCover = ordered(LandCover, levels = c("Water",
+                                              "Forest",
+                                              "Other",
+                                              "Developed, Open space",
+                                              "Developed, Low intensity",
+                                              "Developed, Medium intensity",
+                                              "Developed, High intensity"
+    ))
+  ) 
+
+cover <- cover.full %>% 
   group_by(Year, LandCover) %>% 
   summarize(Area = sum(Freq, na.rm=T)) %>% 
   ungroup() %>% 
@@ -119,6 +136,21 @@ covertable<-cover %>%
 
 write_csv(covertable, "Lake Washington - Land cover percents by year.csv")
 
+covertable.full <- cover.full %>%
+  group_by(Year, LandCoverFull) %>% 
+  summarize(Area = sum(Freq, na.rm=T)) %>% 
+  ungroup() %>% 
+  rename(LandCover = LandCoverFull) %>% 
+  filter(LandCover != "Water") %>% 
+  bind_rows(totaldeveloped) %>% 
+  bind_rows(imp) %>% 
+  mutate(Percent = round(Area / t *100, digits = 1)) %>% 
+  select(LandCover,Year,Percent) %>% 
+  pivot_wider(names_from = Year,
+              values_from = Percent)
+
+write_csv(covertable.full, "Lake Washington - Land cover percents by year - all categories.csv")
+
 # Compare to dividing by each year's land area?
 covertable2<-cover %>% 
   bind_rows(totaldeveloped) %>% 
@@ -129,10 +161,10 @@ covertable2<-cover %>%
   pivot_wider(names_from = Year,
               values_from = Percent)
 # Not much difference -- some land covers still go up/down or down/up.  
-               
-               
 
 
 
 
-               
+
+
+
