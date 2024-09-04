@@ -1,10 +1,8 @@
 # Lake Washington watershed - land cover over time
 # Daniel Nidzgorski
-# March 13, 2024
 
 library(sf)
 library(terra)
-library(tictoc)
 library(tidyverse)
 
 
@@ -36,9 +34,7 @@ readNLCD<-function(filename,w) {
 }
 
 ## Impervious surface
-tic()
 nlcd.imp<-map_dfr(list.files(path="NLCD", pattern="Impervious.+tiff$",full.names = T), readNLCD, w=watershed)
-toc()
 
 # Layer_1 is the percent of impervious surface in that pixel.
 # Directly converting it to numeric ends up off by one (1-101; row numbers??), but going via
@@ -53,10 +49,7 @@ imp<-nlcd.imp %>%
   mutate(LandCover = "Total Impervious")
 
 ## Land cover
-
-tic()
 nlcd.cover<-map_dfr(list.files(path="NLCD", pattern="Cover.+tiff$",full.names = T), readNLCD, w=watershed)
-toc()
 
 # Group land cover into water, shades of development, all forests, and other.
 cover.full<-nlcd.cover %>% 
@@ -98,14 +91,6 @@ cover <- cover.full %>%
   summarize(Area = sum(Freq, na.rm=T)) %>% 
   ungroup() %>% 
   filter(LandCover != "Water")
-
-
-p<-ggplot(cover, aes( x = Year, y = Area, fill = LandCover))+
-  geom_area()
-
-p
-
-# The changes are too subtle to see in the graph! So let's try a table, as percents
 
 totalarea<-cover %>% 
   group_by(Year) %>% 
@@ -150,21 +135,3 @@ covertable.full <- cover.full %>%
               values_from = Percent)
 
 write_csv(covertable.full, "Lake Washington - Land cover percents by year - all categories.csv")
-
-# Compare to dividing by each year's land area?
-covertable2<-cover %>% 
-  bind_rows(totaldeveloped) %>% 
-  bind_rows(imp) %>% 
-  left_join(totalarea, by = "Year") %>% 
-  mutate(Percent = round(Area / TotalArea *100, digits = 1)) %>% 
-  select(LandCover,Year,Percent) %>% 
-  pivot_wider(names_from = Year,
-              values_from = Percent)
-# Not much difference -- some land covers still go up/down or down/up.  
-
-
-
-
-
-
-
