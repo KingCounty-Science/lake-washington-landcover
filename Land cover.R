@@ -8,11 +8,12 @@ library(tidyverse)
 
 rm(list=ls())
 
-# Lake Washington watershed
+# Lake Washington watershed boundary
 watershed<-st_read("Watershed/LakeWashingtonWatershed.shp") %>% 
   st_transform(crs="ESRI:102008")
 
-
+# Function to read in one year's NLCD data
+# and crop and mask to watershed.
 readNLCD<-function(filename,w) {
   
   year<-str_extract(filename,"\\d+")
@@ -43,6 +44,7 @@ imp<-nlcd.imp %>%
   mutate(PctImp = as.character(Layer_1),
          PctImp = as.numeric(PctImp), 
          ImpArea = PctImp * Freq / 100) %>% 
+  # Sum up total impervious surface in the watershed for each year
   group_by(Year) %>% 
   summarize(Area = sum(ImpArea, na.rm=T)) %>% 
   ungroup() %>% 
@@ -51,8 +53,8 @@ imp<-nlcd.imp %>%
 ## Land cover
 nlcd.cover<-map_dfr(list.files(path="NLCD", pattern="Cover.+tiff$",full.names = T), readNLCD, w=watershed)
 
-# Group land cover into water, shades of development, all forests, and other.
 cover.full<-nlcd.cover %>% 
+  # Translate numeric codes to names
   mutate(LandCoverFull = case_when(
     Layer_1 == 11 ~ "Water",
     Layer_1 == 21 ~ "Developed, Open space",
@@ -71,6 +73,10 @@ cover.full<-nlcd.cover %>%
     Layer_1 == 90 ~ "Woody wetlands",
     Layer_1 == 95 ~ "Emergent herbaceous wetlands",
     .default = Layer_1),
+    
+    # Keep developed categories and water as-is.
+    # Group together forests (deciduous, evergreen, mixed)
+    # and all other land-cover categories.
     LandCover = case_when(
       str_detect(LandCoverFull, "Developed") ~ LandCoverFull,
       str_detect(LandCoverFull, "Forest") ~ "Forest",
@@ -86,6 +92,8 @@ cover.full<-nlcd.cover %>%
     ))
   ) 
 
+# Sum up area in each land cover
+# using the Forest and Other groupings
 cover <- cover.full %>% 
   group_by(Year, LandCover) %>% 
   summarize(Area = sum(Freq, na.rm=T)) %>% 
@@ -97,13 +105,13 @@ totalarea<-cover %>%
   summarize(TotalArea = sum(Area))
 
 # Including water, the total area is the same each year.
-# But without water, the "land area" changes slightly. Hmm....
+# But without water, the "land area" changes slightly among years. Hmm....
 # Let's divide everything by a constant denominator. Use 2021 to get accurate recent land cover.
-
 t<-totalarea %>% 
   filter(Year == 2021) %>% 
   pull(TotalArea)
 
+# Also sum up the 4 developed categories to total developed.
 totaldeveloped<-cover %>% 
   filter(str_detect(LandCover,"Developed")) %>% 
   group_by(Year) %>% 
@@ -111,6 +119,8 @@ totaldeveloped<-cover %>%
   ungroup() %>% 
   mutate(LandCover = "Total Developed")
 
+# Table with land cover, total developed, and impervious
+# all expressed as percents of 2021 land area.
 covertable<-cover %>% 
   bind_rows(totaldeveloped) %>% 
   bind_rows(imp) %>% 
@@ -121,6 +131,9 @@ covertable<-cover %>%
 
 write_csv(covertable, "Lake Washington - Land cover percents by year.csv")
 
+# Also sum up area in each individual land-cover category
+# for appendix.
+# Similar to the table above, but with more categories.
 covertable.full <- cover.full %>%
   group_by(Year, LandCoverFull) %>% 
   summarize(Area = sum(Freq, na.rm=T)) %>% 
